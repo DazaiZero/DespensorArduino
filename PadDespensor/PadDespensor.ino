@@ -2,6 +2,18 @@
 
 #include <qrcode.h>
 
+int coinPin = 4;
+int coinVal = 1;
+int mot1pin = 8;
+int mot2pin = 7;
+uint8_t sizeSelected = 0;
+uint8_t coinInserted = 0;
+uint8_t upiDone = 0;
+uint8_t qSelected = 0;
+uint8_t fRenter = 0;
+bool pageChanged = true;
+char data;
+
 NexButton btnStart = NexButton(0, 5, "btnStart"); 
 NexButton btnSS = NexButton(1, 3, "btnS");
 NexButton btnSX = NexButton(1, 4, "btnX");
@@ -24,6 +36,8 @@ NexButton btnQ4 = NexButton(2, 7, "btnQ4");
 NexButton btnRenter = NexButton(2, 3, "btnRenter");
 NexButton btnBack = NexButton(2, 4, "btnBack");
 
+NexButton btnCoin = NexButton(3, 3, "btnCoin");
+
 char buffer[100] = {0};
 
 NexTouch *nex_listen_list[] = {
@@ -37,10 +51,12 @@ NexTouch *nex_listen_list[] = {
   &btnQ4,
   &btnRenter,
   &btnBack,
+  &btnCoin,
   &page0,
   NULL
 };
 
+void(* resetFunc) (void) = 0;  // declare reset fuction at address 0
 
 String generateQRCode(String data) {
   QRCode qrcode;
@@ -68,46 +84,48 @@ void btnStartCallback(void *ptr){
   
 }
 
+void btnCoinCallback(void *ptr){
+  Serial.println("Button Coin Pressed");
+  pageChanged = true;
+}
+
 void btnSSCallback(void *ptr){
   Serial.println("Button S Pressed");
-    uint16_t len;
-    uint16_t number;
-    NexButton *btn = (NexButton *)ptr;
-    Serial.println("btnSSCallback");
-    Serial.println("ptr=");
-    Serial.println((uint32_t)ptr); 
+  sizeSelected = 1;
 
 }
 
 void btnSXCallback(void *ptr){
   Serial.println("Button X Pressed");
-  
+  sizeSelected = 2;
+
 }
 
 void btnSXLCallback(void *ptr){
   Serial.println("Button XL Pressed");
-  
+  sizeSelected = 3;
+
 }
 
 void btnQ1Callback(void *ptr){
   Serial.println("Button 1 Pressed");
-  
+  qSelected = 1;
 }
 
 void btnQ2Callback(void *ptr){
   Serial.println("Button 2 Pressed");
   // Generate QR code image data
-  
+  qSelected = 2;
 }
 
 void btnQ3Callback(void *ptr){
   Serial.println("Button 3 Pressed");
-  
+  qSelected = 3;
 }
 
 void btnQ4Callback(void *ptr){
   Serial.println("Button 4 Pressed");
-  
+  qSelected = 4;
 }
 
 void btnRenterCallback(void *ptr){
@@ -142,12 +160,15 @@ void pageCallback(void *ptr) {
 void setup() {
 
   Serial.begin(9600);
+  pinMode(coinPin, INPUT);
+  pinMode(mot1pin, OUTPUT);
+  pinMode(mot2pin, OUTPUT);
 
   nexInit();
 
   //page0.attachPush(pageCallback, &page0);
   page0.attachPop(pageCallback, &page0);
-
+  btnCoin.attachPop(btnCoinCallback,&btnCoin);
   btnSS.attachPop(btnSSCallback, &btnSS);
   btnStart.attachPop(btnStartCallback, &btnStart);
   btnSX.attachPop(btnSXCallback, &btnSX);
@@ -159,11 +180,8 @@ void setup() {
   btnRenter.attachPop(btnRenterCallback, &btnRenter);
   btnBack.attachPop(btnBackCallback, &btnBack);
 
-  Serial.print("bkcmd=3");
-  Serial.write(0xFF);
-  Serial.write(0xFF);
-  Serial.write(0xFF);
-
+  digitalWrite(mot1pin, LOW);
+	digitalWrite(mot2pin, LOW);
 
   // Get and print the initial page ID
   Serial.print("Initial page ID: ");
@@ -178,17 +196,81 @@ void setup() {
   Serial.println("setup done"); 
 }
 
+void despense(){
+  analogWrite(mot1pin, 255);
+	analogWrite(mot2pin, 255);
+  // Turn on motor A & B
+  Serial.println("qSelected");
+  Serial.println(qSelected);
+  digitalWrite(mot1pin, LOW);
+	digitalWrite(mot2pin, LOW);
+  delay(200);
+  if(qSelected == 1){
+	  digitalWrite(mot1pin, HIGH);
+	  digitalWrite(mot2pin, LOW);
+	  delay(4000);
+  }else if(qSelected == 2){
+	  digitalWrite(mot1pin, HIGH);
+	  digitalWrite(mot2pin, HIGH);
+	  delay(4000);
+  }else if(qSelected == 3){
+    digitalWrite(mot1pin, HIGH);
+	  digitalWrite(mot2pin, HIGH);
+	  delay(4000);
+    digitalWrite(mot1pin, LOW);
+	  digitalWrite(mot2pin, LOW);
+	  delay(2000);
+    digitalWrite(mot1pin, LOW);
+	  delay(4000);
+  }else if(qSelected == 4){
+    digitalWrite(mot1pin, HIGH);
+	  digitalWrite(mot2pin, HIGH);
+	  delay(4000);
+    digitalWrite(mot1pin, LOW);
+	  digitalWrite(mot2pin, LOW);
+	  delay(200);
+    digitalWrite(mot1pin, HIGH);
+	  digitalWrite(mot2pin, HIGH);
+	  delay(4000);
+    digitalWrite(mot1pin, LOW);
+	  digitalWrite(mot2pin, LOW);
+	  delay(200);
+  }
+	// Turn off motors
+	digitalWrite(mot1pin, LOW);
+	digitalWrite(mot2pin, LOW);
+}
 
 void loop() {
   nexLoop(nex_listen_list);
-  uint8_t currentPageId = currentPageId;
 
-  // Print the current page ID
-  Serial.print("Current page ID: ");
-  Serial.println(currentPageId);
+  coinVal = digitalRead(coinPin);
+  //Serial.println(coinVal);
+  
+  if(coinVal == 0){
+    //Serial.println(coinVal);
+    if(pageChanged){
+      Serial.println(pageChanged);
+      delay(500);
+      despense();
+      delay(200);
+      Serial.print("page 6");
+      Serial.write(0xFF);
+      Serial.write(0xFF);
+      Serial.write(0xFF);
+      delay(200);
+      Serial.print("page 6");
+      Serial.write(0xFF);
+      Serial.write(0xFF);
+      Serial.write(0xFF);
+       //pageChanged = false;
+      delay(10000);
+      resetFunc(); //call reset
+    } 
+  }
 
-  // Other code logic here...
-
-  delay(1000);
 }
+
+
+
 
